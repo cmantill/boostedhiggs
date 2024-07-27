@@ -1,9 +1,15 @@
 #!/usr/bin/python
-
+import argparse
 import glob
 import os
 import pickle
-import pickle as pkl
+
+import numpy as np
+from coffea.lumi_tools import LumiData, LumiList
+from tqdm import tqdm
+
+# import pickle as pkl
+
 
 """
 This script combines the pkl files produced by the lumi processor to a single pkl file
@@ -11,49 +17,58 @@ that holds a dictionary with "key=dataset_name" and "value=lumi_set" which has t
 """
 
 
-def main():
-    # load the pkl outfiles
-    year = "2016APV"
-    dir_ = f"/eos/uscms/store/user/fmokhtar/boostedhiggs/lumi_{year}/"
+def main(args):
 
-    # datasets = [
-    #     "SingleElectron_Run2017B",
-    #     "SingleElectron_Run2017D",
-    #     "SingleElectron_Run2017F",
-    #     "SingleMuon_Run2017C",
-    #     "SingleMuon_Run2017E",
-    #     "SingleElectron_Run2017C",
-    #     "SingleElectron_Run2017E",
-    #     "SingleMuon_Run2017B",
-    #     "SingleMuon_Run2017D",
-    #     "SingleMuon_Run2017F"
-    # ]
+    # this csv was made using brilcalc and the GoldenJson2017... refer to
+    # https://github.com/CoffeaTeam/coffea/blob/52e102fce21a3e19f8c079adc649dfdd27c92075/coffea/lumi_tools/lumi_tools.py#L20
+    lumidata = LumiData(f"lumi{args.year}.csv")
 
+    dir_ = f"../eos/Lumi_July11_{args.year}/"
     datasets = os.listdir(dir_)
 
-    out_all = {}
-    for dataset in datasets:
-        print(dataset)
+    for j, dataset in enumerate(datasets):
+        if (args.j is not None) & (j != args.j):
+            continue
+
+        print(f"Processing dataset: {dataset}")
 
         pkl_files = glob.glob(dir_ + dataset + "/outfiles/*")
 
-        for i, pkl_file in enumerate(pkl_files):
-            # you can load the output!
+        combined_lumi_set = set()
+        for i, pkl_file in tqdm(enumerate(pkl_files), total=len(pkl_files)):
             with open(pkl_file, "rb") as f:
-                out = pickle.load(f)[dataset][year + "APV"]["lumilist"]
+                out = pickle.load(f)
 
-            if i == 0:
-                out_all[dataset] = out
-            else:
-                out_all[dataset] = out_all[dataset] | out
+            lumiset = out[dataset][args.year]["lumilist"]
+            combined_lumi_set.update(lumiset)
 
-    # save the out_all
-    with open(f"{dir_}/lumi_set.pkl", "wb") as handle:
-        pkl.dump(out_all, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            # break
+
+        # output_file = os.path.join(dir_, f"{dataset}/lumi_set_{dataset}.pkl")
+        # with open(output_file, "wb") as handle:
+        #     pickle.dump({dataset: combined_lumi_set}, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # convert the set to a numpy 2d-array
+
+        print("Will form a numpy array")
+        lumis = np.array(list(combined_lumi_set))
+        # print(lumis.shape)
+
+        # make LumiList object
+        print("Will instantiate a LumiList object")
+        lumi_list = LumiList(runs=lumis[:, 0], lumis=lumis[:, 1])
+
+        print("Will get the Lumi")
+        lumi = lumidata.get_lumi(lumi_list)
+
+        print(f"{dataset}: {lumi}")
+
+        print("-------------------------------------")
 
 
 if __name__ == "__main__":
-    # e.g.
-    # run locally on lpc as: python combine_lumi.py
-
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--year", dest="year", default="2017", help="year", type=str)
+    parser.add_argument("--j", dest="j", default=None, help="year", type=int)
+    args = parser.parse_args()
+    main(args)

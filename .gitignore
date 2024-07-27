@@ -54,3 +54,8 @@ binder/*.root
 
 documentation
 binder/btag/*.root
+
+CMSSW*
+Brilconda*
+brilconda/*
+combine/higgs*

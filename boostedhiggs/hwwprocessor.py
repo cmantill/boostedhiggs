@@ -25,9 +25,9 @@ from boostedhiggs.corrections import (
     add_TopPtReweighting,
     add_VJets_kFactors,
     btagWPs,
-    corrected_msoftdrop,
     get_btag_weights,
     get_jec_jets,
+    get_JetVetoMap,
     get_jmsr,
     getJECVariables,
     getJMSRVariables,
@@ -184,7 +184,7 @@ class HwwProcessor(processor.ProcessorABC):
 
         # sum PDF weight
         sumpdfweight = {}
-        if "LHEPdfWeight" in events.fields and self.isMC and self.isSignal:
+        if "LHEPdfWeight" in events.fields and self.isMC:
             for i in range(len(events.LHEPdfWeight[0])):
                 sumpdfweight[i] = ak.sum(events.LHEPdfWeight[:, i] * events.genWeight)
 
@@ -309,8 +309,7 @@ class HwwProcessor(processor.ProcessorABC):
 
         # OBJECT: AK8 fatjets
         fatjets = events.FatJet
-        fatjets["msdcorr"] = corrected_msoftdrop(fatjets)
-        # fatjets["msdcorr"] = fatjets.msoftdrop
+        fatjets["msdcorr"] = fatjets.msoftdrop
         fatjet_selector = (fatjets.pt > 200) & (abs(fatjets.eta) < 2.5) & fatjets.isTight
         good_fatjets = fatjets[fatjet_selector]
         good_fatjets = good_fatjets[ak.argsort(good_fatjets.pt, ascending=False)]  # sort them by pt
@@ -339,6 +338,15 @@ class HwwProcessor(processor.ProcessorABC):
         met = met_factory.build(events.MET, jets, {}) if self.isMC else events.MET
 
         ht = ak.sum(jets.pt, axis=1)
+
+        loose_jet_selector = (
+            (jets.pt > 15)
+            & jets.isTight
+            & ((jets.pt >= 50) | ((jets.pt < 50) & (jets.puId & 2) == 2))
+            & (jets.neEmEF < 0.9)  # neutral energy fraction
+        )
+        vetomapjets = jets[loose_jet_selector]
+        _, cut_jetveto = get_JetVetoMap(vetomapjets, self._year)
 
         jet_selector = (
             (jets.pt > 30)
@@ -436,6 +444,8 @@ class HwwProcessor(processor.ProcessorABC):
             "VH_fj_pt": VH_fj.pt,
             "VH_fj_eta": VH_fj.eta,
             "VH_fj_VScore": VScore(VH_fj),
+            # add jetveto as optional selection
+            "jetvetomap": cut_jetveto,
         }
 
         fatjetvars = {
@@ -638,49 +648,51 @@ class HwwProcessor(processor.ProcessorABC):
                     tops = events.GenPart[
                         get_pid_mask(events.GenPart, 6, byall=False) * events.GenPart.hasFlags(["isLastCopy"])
                     ]
+                    # add_TopPtReweighting(self.weights[ch], tops.pt)
                     variables["top_reweighting"] = add_TopPtReweighting(tops.pt)
 
                 if self.isSignal:
                     add_HiggsEW_kFactors(self.weights[ch], events.GenPart, dataset)
 
-                if self.isSignal or "TT" in dataset or "WJets" in dataset:
-                    """
-                    For the QCD acceptance uncertainty:
-                    - we save the individual weights [0, 1, 3, 5, 7, 8]
-                    - postprocessing: we obtain sum_sumlheweight
-                    - postprocessing: we obtain LHEScaleSumw: sum_sumlheweight[i] / sum_sumgenweight
-                    - postprocessing:
-                      obtain histograms for 0, 1, 3, 5, 7, 8 and 4: h0, h1, ... respectively
-                       weighted by scale_0, scale_1, etc
-                      and normalize them by  (xsec * luminosity) / LHEScaleSumw[i]
-                    - then, take max/min of h0, h1, h3, h5, h7, h8 w.r.t h4: h_up and h_dn
-                    - the uncertainty is the nominal histogram * h_up / h4
-                    """
-                    scale_weights = {}
-                    if "LHEScaleWeight" in events.fields:
-                        # save individual weights
-                        if len(events.LHEScaleWeight[0]) == 9:
-                            for i in [0, 1, 3, 5, 7, 8, 4]:
-                                scale_weights[f"weight_scale{i}"] = events.LHEScaleWeight[:, i]
-                    variables = {**variables, **scale_weights}
+                if self._systematics:
+                    if self.isSignal or "TT" in dataset or "WJets" in dataset or "ST_" in dataset:
+                        """
+                        For the QCD acceptance uncertainty:
+                        - we save the individual weights [0, 1, 3, 5, 7, 8]
+                        - postprocessing: we obtain sum_sumlheweight
+                        - postprocessing: we obtain LHEScaleSumw: sum_sumlheweight[i] / sum_sumgenweight
+                        - postprocessing:
+                        obtain histograms for 0, 1, 3, 5, 7, 8 and 4: h0, h1, ... respectively
+                        weighted by scale_0, scale_1, etc
+                        and normalize them by  (xsec * luminosity) / LHEScaleSumw[i]
+                        - then, take max/min of h0, h1, h3, h5, h7, h8 w.r.t h4: h_up and h_dn
+                        - the uncertainty is the nominal histogram * h_up / h4
+                        """
+                        scale_weights = {}
+                        if "LHEScaleWeight" in events.fields:
+                            # save individual weights
+                            if len(events.LHEScaleWeight[0]) == 9:
+                                for i in [0, 1, 3, 5, 7, 8, 4]:
+                                    scale_weights[f"weight_scale{i}"] = events.LHEScaleWeight[:, i]
+                        variables = {**variables, **scale_weights}
 
-                if self.isSignal:
-                    """
-                    For the PDF acceptance uncertainty:
-                    - store 103 variations. 0-100 PDF values
-                    - The last two values: alpha_s variations.
-                    - you just sum the yield difference from the nominal in quadrature to get the total uncertainty.
-                    e.g. https://github.com/LPC-HH/HHLooper/blob/master/python/prepare_card_SR_final.py#L258
-                    and https://github.com/LPC-HH/HHLooper/blob/master/app/HHLooper.cc#L1488
-                    """
-                    pdf_weights = {}
-                    if "LHEPdfWeight" in events.fields:
-                        # save individual weights
-                        for i in range(len(events.LHEPdfWeight[0])):
-                            pdf_weights[f"weight_pdf{i}"] = events.LHEPdfWeight[:, i]
-                    variables = {**variables, **pdf_weights}
+                    if self.isSignal or "TT" in dataset or "WJets" in dataset or "ST_" in dataset:
+                        """
+                        For the PDF acceptance uncertainty:
+                        - store 103 variations. 0-100 PDF values
+                        - The last two values: alpha_s variations.
+                        - you just sum the yield difference from the nominal in quadrature to get the total uncertainty.
+                        e.g. https://github.com/LPC-HH/HHLooper/blob/master/python/prepare_card_SR_final.py#L258
+                        and https://github.com/LPC-HH/HHLooper/blob/master/app/HHLooper.cc#L1488
+                        """
+                        pdf_weights = {}
+                        if "LHEPdfWeight" in events.fields:
+                            # save individual weights
+                            for i in range(len(events.LHEPdfWeight[0])):
+                                pdf_weights[f"weight_pdf{i}"] = events.LHEPdfWeight[:, i]
+                        variables = {**variables, **pdf_weights}
 
-                if self.isSignal:
+                if self.isSignal or "TT" in dataset or "WJets" in dataset or "ST_" in dataset:
                     add_ps_weight(
                         self.weights[ch],
                         events.PSWeight if "PSWeight" in events.fields else [],

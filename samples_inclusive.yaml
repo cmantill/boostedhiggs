@@ -102,14 +102,6 @@ sig:
   - ttHToNonbb_M125
 ggF:
   - GluGluHToWW_Pt-200ToInf_M-125
-vjetslep:
-  - WJetsToLNu_HT-100To200
-  - WJetsToLNu_HT-200To400
-  - WJetsToLNu_HT-400To600
-  - WJetsToLNu_HT-600To800
-  - WJetsToLNu_HT-800To1200
-  - WJetsToLNu_HT-1200To2500
-  - WJetsToLNu_HT-2500ToInf
 data:
   2016:
     - SingleMuon_Run2016F
@@ -386,3 +378,19 @@ EWK:
   - ZJetsToQQ_HT-800toInf
 ttH:
   - ttHToNonbb_M125
+singletop:
+  - ST_t-channel_antitop_4f_InclusiveDecays
+  - ST_t-channel_top_4f_InclusiveDecays
+  - ST_tW_antitop_5f_inclusiveDecays
+  - ST_tW_top_5f_inclusiveDecays
+  - ST_s-channel_4f_hadronicDecays
+  - ST_s-channel_4f_leptonDecays
+wjetslep:
+  - WJetsToLNu_HT-70To100
+  - WJetsToLNu_HT-100To200
+  - WJetsToLNu_HT-200To400
+  - WJetsToLNu_HT-400To600
+  - WJetsToLNu_HT-600To800
+  - WJetsToLNu_HT-800To1200
+  - WJetsToLNu_HT-1200To2500
+  - WJetsToLNu_HT-2500ToInf

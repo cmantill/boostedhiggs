@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import rhalphalib as rl
-from systematics import systs_from_parquets, systs_not_from_parquets
+from combine.datacard_systematics import systs_from_parquets, systs_not_from_parquets
 from utils import (
     blindBins,
     get_template,

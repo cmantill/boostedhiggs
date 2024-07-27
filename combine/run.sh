@@ -128,7 +128,7 @@ seed=$seed numtoys=$numtoys"
 ####################################################################################################
 
 dataset=data_obs
-cards_dir="/uscms/home/fmokhtar/nobackup/boostedhiggs/combine/templates/v5/datacards"
+cards_dir="templates/v6/datacards"
 cp ${cards_dir}/testModel.root testModel.root # TODO: avoid this
 CMS_PARAMS_LABEL="CMS_HWW_boosted"
 
@@ -153,12 +153,16 @@ ws=${outdir}/workspace.root
 
 # # ADD REGIONS
 sr1="VBF"
-sr2="ggFpt250to300"
-sr3="ggFpt300to450"
-sr4="ggFpt450toInf"
-# ccargs="SR1=${cards_dir}/${sr1}.txt"
-# ccargs="SR1=${cards_dir}/${sr1}.txt SR2=${cards_dir}/${sr2}.txt"
+sr2="ggFpt250to350"
+sr3="ggFpt350to500"
+sr4="ggFpt500toInf"
 ccargs="SR1=${cards_dir}/${sr1}.txt SR2=${cards_dir}/${sr2}.txt SR3=${cards_dir}/${sr3}.txt SR4=${cards_dir}/${sr4}.txt"
+
+# sr4="ggFpt450to650"
+# sr5="ggFpt650toInf"
+# ccargs="SR1=${cards_dir}/${sr1}.txt SR2=${cards_dir}/${sr2}.txt SR3=${cards_dir}/${sr3}.txt SR4=${cards_dir}/${sr4}.txt SR5=${cards_dir}/${sr5}.txt"
+
+# ccargs="SR1=${cards_dir}/${sr1}.txt SR3=${cards_dir}/${sr3}.txt SR4=${cards_dir}/${sr4}.txt SR5=${cards_dir}/${sr5}.txt"
 
 cr1="TopCR"
 cr2="WJetsCR"
@@ -193,7 +197,7 @@ if [ $significance = 1 ]; then
     echo "Expected significance"
 
     # single POI
-    combine -M Significance -d $ws -t -1 --setParameters r=1
+    combine -M Significance -d $ws -m 125 --expectSignal=1 --rMin -1 --rMax 5 -t -1
 
     # seperate POIs
     # ggF
@@ -215,17 +219,17 @@ fi
 
 if [ $dfit_asimov = 1 ]; then
 
-    # echo "Fit Diagnostics Asimov"
-    # combine -M FitDiagnostics -m 125 -d $ws \
-    # -t -1 --expectSignal=1 --saveWorkspace --saveToys -n Asimov --ignoreCovWarning \
-    # --saveShapes --saveNormalizations --saveWithUncertainties --saveOverallShapes 2>&1 | tee $logsdir/FitDiagnosticsAsimov.txt
-
-
-
     echo "Fit Diagnostics Asimov"
     combine -M FitDiagnostics -m 125 -d $ws \
-    -t -1 --setParameters r_ggF=1,r_VBF=1,r_VH=1,r_ttH=1 --saveWorkspace --saveToys -n Asimov --ignoreCovWarning \
+    -t -1 --expectSignal=1 --saveWorkspace --saveToys -n Asimov --ignoreCovWarning \
     --saveShapes --saveNormalizations --saveWithUncertainties --saveOverallShapes 2>&1 | tee $logsdir/FitDiagnosticsAsimov.txt
+
+
+
+    # echo "Fit Diagnostics Asimov"
+    # combine -M FitDiagnostics -m 125 -d $ws \
+    # -t -1 --setParameters r_ggF=1,r_VBF=1,r_VH=1,r_ttH=1 --saveWorkspace --saveToys -n Asimov --ignoreCovWarning \
+    # --saveShapes --saveNormalizations --saveWithUncertainties --saveOverallShapes 2>&1 | tee $logsdir/FitDiagnosticsAsimov.txt
 
 
 

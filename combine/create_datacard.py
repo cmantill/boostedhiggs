@@ -18,8 +18,9 @@ import warnings
 
 import pandas as pd
 import rhalphalib as rl
-from systematics import systs_from_parquets, systs_not_from_parquets
-from utils import get_template, labels, load_templates, samples, shape_to_num, sigs
+from datacard_systematics import systs_from_parquets, systs_not_from_parquets
+from systematics import bkgs, sigs
+from utils import get_template, labels, load_templates, shape_to_num
 
 rl.ParametericSample.PreferRooParametricHist = True
 logging.basicConfig(level=logging.INFO)
@@ -39,12 +40,8 @@ def create_datacard(hists_templates, years, lep_channels, add_ttbar_constraint=T
     model = rl.Model("testModel")
 
     # define the signal and control regions
-    # SIG_regions = ["VBF", "ggFpt250to300", "ggFpt300to450", "ggFpt450to650", "ggFpt650toInf"]
-    SIG_regions = ["VBF", "ggFpt250to300", "ggFpt300to450", "ggFpt450toInf"]
+    SIG_regions = ["VBF", "ggFpt250to350", "ggFpt350to500", "ggFpt500toInf"]
     CONTROL_regions = ["TopCR", "WJetsCR"]
-
-    # SIG_regions = list(hists_templates.axes["Region"])
-    # CONTROL_regions = []
 
     if add_ttbar_constraint:
         ttbarnormSF = rl.IndependentParameter("ttbarnormSF", 1.0, 0, 10)
@@ -54,12 +51,11 @@ def create_datacard(hists_templates, years, lep_channels, add_ttbar_constraint=T
 
     # fill datacard with systematics and rates
     for ChName in SIG_regions + CONTROL_regions:
-        Samples = samples.copy()
 
         ch = rl.Channel(ChName)
         model.addChannel(ch)
 
-        for sName in Samples:
+        for sName in sigs + bkgs:
 
             if (sName in sigs) and (ChName in CONTROL_regions):
                 continue
@@ -69,9 +65,6 @@ def create_datacard(hists_templates, years, lep_channels, add_ttbar_constraint=T
                 continue
             stype = rl.Sample.SIGNAL if sName in sigs else rl.Sample.BACKGROUND
             sample = rl.TemplateSample(ch.name + "_" + labels[sName], stype, templ)
-
-            # if "CR" in ChName:
-            #     sample.autoMCStats(lnN=True)
 
             # SYSTEMATICS NOT FROM PARQUETS
             for syst_on_sample in ["all_samples", sName]:  # apply common systs and per sample systs
@@ -107,11 +100,37 @@ def create_datacard(hists_templates, years, lep_channels, add_ttbar_constraint=T
 
             ch.addSample(sample)
 
+        # add Fake
+        sName = "Fake"
+        templ = get_template(hists_templates, sName, ChName)
+        if templ == 0:
+            continue
+        sample = rl.TemplateSample(ch.name + "_" + labels[sName], rl.Sample.BACKGROUND, templ)
+
+        # add Fake unc.
+        sample.setParamEffect(rl.NuisanceParameter(f"{CMS_PARAMS_LABEL}_Fake_SF_uncertainty", "lnN"), 1.5)
+
+        name_in_card = {
+            "FR_stat": f"{CMS_PARAMS_LABEL}_FakeRate_statistical_uncertainty",
+            "EWK_SF": f"{CMS_PARAMS_LABEL}_FakeRate_EWK_SF_statistical_uncertainty",
+        }
+        for sys_name in ["FR_stat", "EWK_SF"]:
+
+            sys_value = rl.NuisanceParameter(name_in_card[sys_name], "shape")
+            syst_up = hists_templates[{"Sample": "Fake", "Region": ChName, "Systematic": sys_name + "_Up"}].values()
+            syst_do = hists_templates[{"Sample": "Fake", "Region": ChName, "Systematic": sys_name + "_Down"}].values()
+            nominal = hists_templates[{"Sample": "Fake", "Region": ChName, "Systematic": "nominal"}].values()
+
+            nominal[nominal == 0] = 1  # to avoid invalid value encountered in true_divide in "syst_up/nominal"
+            sample.setParamEffect(sys_value, (syst_up / nominal), (syst_do / nominal))
+
+        ch.addSample(sample)
+
         # add data
         data_obs = get_template(hists_templates, "Data", ChName)
         ch.setObservation(data_obs)
 
-        # if "CR" not in ChName:
+        # add mcstats
         ch.autoMCStats(
             channel_name=f"{CMS_PARAMS_LABEL}_{ChName}",
         )

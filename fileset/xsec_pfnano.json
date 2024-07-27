@@ -7,9 +7,9 @@
     "ttHToNonbb_M125": 0.21009483,
     "HWminusJ_HToWW_M-125": 0.11635965,
     "HWplusJ_HToWW_M-125": 0.1863464,
-    "HZJ_HToWW_M-125": 0.16863067,
+    "HZJ_HToWW_M-125": 0.20504515,
     "GluGluZH_HToWW_ZTo2L_M-125": 0.00263900698674,
-    "GluGluZH_HToWW_M-125_TuneCP5_13TeV-powheg-pythia8": 0.00263900698674,
+    "GluGluZH_HToWW_M-125_TuneCP5_13TeV-powheg-pythia8": 0.01316392,
     "GluGluZH_HToWW_M-125": 0.01316392,
     "QCD_HT500to700": 30330.0,
     "QCD_HT700to1000": 6412.0,
@@ -109,10 +109,5 @@
     "WminusHToTauTau": 0.032739120000000003,
     "WplusHToTauTau": 0.05173551,
     "ZHToTauTau": 0.04684824,
-    "ttHToTauTau": 0.03125493,
-    "DYJetsToLL_Pt-50To100": 394.1,
-    "DYJetsToLL_Pt-100To250": 94.42,
-    "DYJetsToLL_Pt-250To400": 3.651,
-    "DYJetsToLL_Pt-400To650": 0.4986,
-    "DYJetsToLL_Pt-650ToInf": 0.04678
+    "ttHToTauTau": 0.03125493
 }

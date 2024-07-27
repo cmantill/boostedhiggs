@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import rhalphalib as rl
-from systematics import systs_not_from_parquets
+from combine.datacard_systematics import systs_not_from_parquets
 from utils import get_template, labels, load_templates, samples, sigs
 
 rl.ParametericSample.PreferRooParametricHist = True

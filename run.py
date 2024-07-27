@@ -119,7 +119,7 @@ def main(args):
     elif args.processor == "lumi":
         from boostedhiggs.lumi_processor import LumiProcessor
 
-        p = LumiProcessor(year=args.year + yearmod, output_location=f"./outfiles/{job_name}")
+        p = LumiProcessor(year=args.year, output_location=f"./outfiles/{job_name}")
 
     elif args.processor == "input":
         # define processor
@@ -145,7 +145,7 @@ def main(args):
             TriggerEfficienciesProcessor,
         )
 
-        p = TriggerEfficienciesProcessor(year=args.year)
+        p = TriggerEfficienciesProcessor(year=year, yearmod=yearmod)
 
     tic = time.time()
     if args.executor == "dask":
@@ -205,7 +205,13 @@ def main(args):
         pkl.dump(out, filehandler)
         filehandler.close()
 
-        if (args.processor != "trigger") & (args.processor != "lumi"):
+        if args.processor == "lumi":
+            data = pd.read_parquet("./outfiles/" + job_name + "/parquet")
+            data.to_parquet("./outfiles/" + job_name + ".parquet")
+            # remove old parquet files
+            os.system("rm -rf ./outfiles/" + job_name)
+
+        elif args.processor != "trigger":
             # merge parquet
             for ch in channels:
                 data = pd.read_parquet("./outfiles/" + job_name + ch + "/parquet")
@@ -216,10 +222,9 @@ def main(args):
 
 if __name__ == "__main__":
     # e.g.
-    # noqa: run locally on lpc (hww mc) as: python run.py --year 2017 --processor hww --pfnano v2_2 --n 1 --starti 0 --config samples_inclusive.yaml --key mc
-    # noqa: run locally on lpc (hww trigger) as: python run.py --year 2017 --processor trigger --pfnano v2_2 --n 1 --starti 0 --sample GluGluHToWW_Pt-200ToInf_M-125 --local --channels ele --config samples_inclusive.yaml --key mc
+    # noqa: run locally on lpc (trigger) as: python run.py --year 2017 --processor trigger --pfnano v2_2 --n 4 --starti 0 --sample TTTo2L2Nu --local --channels ele --config samples_inclusive.yaml --key mc --executor iterative
 
-    # noqa: run locally on single file (hww): python run.py --year 2017 --processor hww --pfnano v2_2 --n 1 --starti 0 --sample GluGluHToWW_Pt-200ToInf_M-125 --local --channels ele --config samples_inclusive.yaml --key mc
+    # noqa: run locally on single file (hww): python run.py --year 2017 --processor hww --pfnano v2_2 --n 1 --starti 0 --sample GluGluHToWW_Pt-200ToInf_M-125 --local --channels ele --config samples_inclusive.yaml --key mc --executor iterative
 
     # noqa LP: python run.py --year 2017 --processor hww --pfnano v2_2 --n 1 --starti 0 --sample GluGluHToWW_Pt-200ToInf_M-125 --local --channels ele,mu --config samples_inclusive.yaml --key mc --getLPweights --inference
     # noqa Fakes: python run.py --year 2017 --processor fakes --pfnano v2_2 --n 1 --starti 0 --sample GluGluHToWW_Pt-200ToInf_M-125 --local --channels ele,mu --config samples_inclusive.yaml --key mc

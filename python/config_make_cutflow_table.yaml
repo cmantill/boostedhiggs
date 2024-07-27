@@ -1,0 +1,31 @@
+samples_dir:
+    "2018": ../eos/July18_hww_2018
+    "2017": ../eos/July18_hww_2017
+    "2016": ../eos/July18_hww_2016
+    "2016APV": ../eos/July18_hww_2016APV
+
+samples:
+    - ggF
+    - VBF
+    - ttH
+    - WH
+    - ZH
+    - Fake
+    # - QCD
+    - SingleTop
+    - Diboson
+    - EWKvjets
+    - DYJets
+    - WZQQ
+    - TTbar
+    - WJetsLNu
+    - Data
+
+add_cuts:
+    msoftdrop: (fj_mass>40)
+    THWW: (fj_mass>40) & (THWW>0.75)
+
+add_data: True
+add_sumgenweight: True
+
+THWW_path: ../../weaver-core-dev/experiments_finetuning/v35_30/model.onnx

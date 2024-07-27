@@ -69,11 +69,12 @@ xs["ttHToNonbb_M125"] = 5.013e-01 * (1 - BR_HBB)
 # Cross xcheck the following numbers
 xs["HWminusJ_HToWW_M-125"] = 0.5445 * BR_HWW
 xs["HWplusJ_HToWW_M-125"] = 0.8720 * BR_HWW
-# xs["HZJ_HToWW_M-125"] = 0.9595 * BR_HWW
-xs["HZJ_HToWW_M-125"] = 0.7891 * BR_HWW  # this was replaced with above GenXSecAnalyzer Number
+xs["HZJ_HToWW_M-125"] = 0.9595 * BR_HWW
+# xs["HZJ_HToWW_M-125"] = 0.7891 * BR_HWW  # this was replaced with above GenXSecAnalyzer Number
 # cross check -  this in xsdb is 0.006185
 xs["GluGluZH_HToWW_ZTo2L_M-125"] = 0.1223 * 3 * 0.033658 * BR_HWW  # 0.002639
-xs["GluGluZH_HToWW_M-125_TuneCP5_13TeV-powheg-pythia8"] = xs["GluGluZH_HToWW_ZTo2L_M-125"]
+# xs["GluGluZH_HToWW_M-125_TuneCP5_13TeV-powheg-pythia8"] = xs["GluGluZH_HToWW_ZTo2L_M-125"]
+xs["GluGluZH_HToWW_M-125_TuneCP5_13TeV-powheg-pythia8"] = 0.0616 * BR_HWW
 xs["GluGluZH_HToWW_M-125"] = 0.0616 * BR_HWW
 
 # QCD

@@ -20,64 +20,19 @@ import sys
 import matplotlib.pyplot as plt
 import mplhep as hep
 import pandas as pd
+import pyarrow
+import yaml
 
 sys.path
 sys.path.append("../python/")
 
 import utils
+from utils import get_xsecweight
 
 plt.style.use(hep.style.CMS)
 plt.rcParams.update({"font.size": 20})
 
 pd.options.mode.chained_assignment = None
-
-
-cuts = {
-    "mu": [
-        "sumgenweight",
-        "HEMCleaning",
-        "Trigger",
-        "METFilters",
-        "OneLep",
-        "NoTaus",
-        "LepIso",
-        "LepMiniIso",
-        "OneCandidateJet",
-        "CandidateJetpT",
-        "LepInJet",
-        "JetLepOverlap",
-        "dPhiJetMETCut",
-    ],
-    "ele": [
-        "sumgenweight",
-        "HEMCleaning",
-        "Trigger",
-        "METFilters",
-        "OneLep",
-        "NoTaus",
-        "LepIso",
-        "OneCandidateJet",
-        "CandidateJetpT",
-        "LepInJet",
-        "JetLepOverlap",
-        "dPhiJetMETCut",
-    ],
-    "lep": [
-        "sumgenweight",
-        "HEMCleaning",
-        "Trigger",
-        "METFilters",
-        "OneLep",
-        "NoTaus",
-        "LepIso",
-        "LepMiniIso",
-        "OneCandidateJet",
-        "CandidateJetpT",
-        "LepInJet",
-        "JetLepOverlap",
-        "dPhiJetMETCut",
-    ],
-}
 
 
 cut_to_label = {
@@ -87,35 +42,35 @@ cut_to_label = {
     "METFilters": "METFilters",
     "OneLep": "n Leptons = 1",
     "NoTaus": "n Taus = 0",
-    "LepIso": r"$\ell$ relative isolation",
-    "LepMiniIso": r"$\ell$ mini-isolation",
-    "OneCandidateJet": "n FatJets = 1",
+    "AtLeastOneFatJet": r"n FatJets $>=$ 1",
     "CandidateJetpT": r"j $p_T > 250$GeV",
     "LepInJet": r"$\Delta R(j, \ell) < 0.8$",
     "JetLepOverlap": r"$\Delta R(j, \ell) > 0.03$",
-    "dPhiJetMETCut": r"$\Delta \phi(\mathrm{MET}, j)<1.57$",
-    # "$\mathrm{MET}>20~\GeV$"
+    "dPhiJetMET": r"$\Delta \phi(\mathrm{MET}, j)<1.57$",
+    "MET": r"$\mathrm{MET}>20$",
+    "None": "None",
+    "msoftdrop": r"j $\mathrm{softdrop} > 40$GeV",
+    "THWW": r"$\ensuremath{T_{\text{HWW}}^{\ell\nu qq}} > 0.75$",
 }
 
 parquet_to_latex = {
     "WJetsLNu": "$\PW(\Pell\PGn)$+",
-    "QCD": "QCD",
-    # "DYJets": "$\PZ(\Pell\Pell)$+jets",
     "TTbar": "\\ttbar",
     "Others": "Other MC",
     "ggF": "ggF",
     "VBF": "VBF",
-    "VH": "VH",
+    "WH": "WH",
+    "ZH": "ZH",
     "ttH": "$t\\bar{t}H$",
     "Data": "Data",
 }
 
-# get lumi
-with open("../fileset/luminosity.json") as f:
-    luminosity = json.load(f)
-
 
 def get_lumi(years, channels):
+    # get lumi
+    with open("../fileset/luminosity.json") as f:
+        luminosity = json.load(f)
+
     lum_ = 0
     for year in years:
         lum = 0
@@ -126,83 +81,32 @@ def get_lumi(years, channels):
     return lum_
 
 
-def get_sum_sumgenweight(pkl_files, year, sample):
-    """Load and sum the sumgenweight of each pkl file."""
-
-    sum_sumgenweight = 0
-    for ifile in pkl_files:
-        with open(ifile, "rb") as f:
-            metadata = pkl.load(f)
-        sum_sumgenweight = sum_sumgenweight + metadata[sample][year]["sumgenweight"]
-
-    return sum_sumgenweight
-
-
-def get_xsecweight(pkl_files, year, ch, sample, is_data):
-    """Get xsec-weight and scales events by lumi/sumgenweights."""
-
-    if not is_data:
-        # find xsection
-        f = open("../fileset/xsec_pfnano.json")
-        xsec = json.load(f)
-        f.close()
-        try:
-            xsec = eval(str((xsec[sample])))
-        except ValueError:
-            print(f"sample {sample} doesn't have xsecs defined in xsec_pfnano.json so will skip it")
-            return None
-
-        # get overall weighting of events.. each event has a genweight...
-        # sumgenweight sums over events in a chunk... sum_sumgenweight sums over chunks
-        xsec_weight = (xsec * luminosity[ch][year]) / get_sum_sumgenweight(pkl_files, year, sample)
-    else:
-        xsec_weight = 1
-    return xsec_weight
-
-
 def get_cutflow(pkl_files, year, ch, sample, is_data):
     """Get cutflow from metadata but multiply by xsec-weight."""
 
-    xsec_weight = get_xsecweight(pkl_files, year, ch, sample, is_data)
+    with open("../fileset/luminosity.json") as f:
+        luminosity = json.load(f)[ch][year]
+
+    xsec_weight = get_xsecweight(pkl_files, year, sample, is_data, luminosity)
+
+    cuts = [
+        "sumgenweight",
+        "Trigger",
+        "METFilters",
+        "OneLep",
+        "NoTaus",
+        "AtLeastOneFatJet",
+        "CandidateJetpT",
+        "LepInJet",
+        "JetLepOverlap",
+        "dPhiJetMET",
+        "MET",
+    ]
 
     if year == "2018":
-        cuts = {
-            "mu": ["sumgenweight", "HEMCleaning"],
-            "ele": ["sumgenweight", "HEMCleaning"],
-        }
-    else:
-        cuts = {
-            "mu": ["sumgenweight"],
-            "ele": ["sumgenweight"],
-        }
+        cuts += ["HEMCleaning"]
 
-    cuts["mu"] += [
-        "Trigger",
-        "METFilters",
-        "OneLep",
-        "NoTaus",
-        "LepIso",
-        "LepMiniIso",
-        "OneCandidateJet",
-        "CandidateJetpT",
-        "LepInJet",
-        "JetLepOverlap",
-        "dPhiJetMETCut",
-    ]
-    cuts["ele"] += [
-        "Trigger",
-        "METFilters",
-        "OneLep",
-        "NoTaus",
-        "LepIso",
-        "OneCandidateJet",
-        "CandidateJetpT",
-        "LepInJet",
-        "JetLepOverlap",
-        "dPhiJetMETCut",
-    ]
-
-    evyield = dict.fromkeys(cuts[ch], 0)
+    evyield = dict.fromkeys(cuts, 0)
     for ik, pkl_file in enumerate(pkl_files):
         with open(pkl_file, "rb") as f:
             metadata = pkl.load(f)
@@ -210,9 +114,9 @@ def get_cutflow(pkl_files, year, ch, sample, is_data):
         cutflows = metadata[sample][year]["cutflows"][ch]
 
         for key in evyield.keys():
+
             if key == "sumgenweight":
                 evyield[key] += metadata[sample][year][key] * xsec_weight
-
             else:
                 evyield[key] += cutflows[key] * xsec_weight
     return evyield
@@ -232,13 +136,22 @@ def make_cutflow_dict(years, channels, samples_dir, samples):
             condor_dir = os.listdir(samples_dir[year])
 
             for sample in condor_dir:
-                # get a combined label to combine samples of the same process
-                for key in utils.combine_samples:
+
+                # first: check if the sample is in one of combine_samples_by_name
+                sample_to_use = None
+                for key in utils.combine_samples_by_name:
                     if key in sample:
-                        sample_to_use = utils.combine_samples[key]
+                        sample_to_use = utils.combine_samples_by_name[key]
                         break
-                    else:
-                        sample_to_use = sample
+
+                # second: if not, combine under common label
+                if sample_to_use is None:
+                    for key in utils.combine_samples:
+                        if key in sample:
+                            sample_to_use = utils.combine_samples[key]
+                            break
+                        else:
+                            sample_to_use = sample
 
                 if sample_to_use not in samples:
                     continue
@@ -250,6 +163,22 @@ def make_cutflow_dict(years, channels, samples_dir, samples):
                 out_files = f"{samples_dir[year]}/{sample}/outfiles/"
                 pkl_files = glob.glob(f"{out_files}/*.pkl")
 
+                if len(pkl_files) == 0:
+                    continue
+
+                parquet_files = glob.glob(f"{out_files}/*_{ch}.parquet")
+
+                try:
+                    data = pd.read_parquet(parquet_files)
+                except pyarrow.lib.ArrowInvalid:
+                    # empty parquet because no event passed selection
+                    #                 print(f"No parquet file for {sample}")
+                    continue
+
+                if len(data) == 0:
+                    #                 print(f"Hi, No parquet file for {sample}")
+                    continue
+
                 if sample_to_use not in cutflows[year][ch].keys():
                     cutflows[year][ch][sample_to_use] = get_cutflow(pkl_files, year, ch, sample, is_data)
                 else:
@@ -258,47 +187,37 @@ def make_cutflow_dict(years, channels, samples_dir, samples):
                         cutflows[year][ch][sample_to_use][key] += temp[key]
 
         print("------------------------------------------")
+
+    return cutflows
+
+
+def add_cut_to_cutflow(cutflows, years, channels, samples, samples_dir, add_cuts, THWW_path):
+    from make_stacked_hists import make_events_dict
+
+    # dummy selection at first
+    presel = {
+        "mu": {},
+        "ele": {},
+    }
+
+    events_dict = make_events_dict(years, channels, samples_dir, samples, presel, THWW_path)
+
+    for cut, sel in list(add_cuts.items()):
+        for year in years:
+            for ch in channels:
+                for sample in samples:
+
+                    df = events_dict[year][ch][sample]
+                    df = df.query(sel)
+
+                    w = df["nominal"]
+
+                    cutflows[year][ch][sample][cut] = w.sum()
+
     return cutflows
 
 
 def combine_channels(cutflows):
-    """
-    Must add lepminiso cutflow to electron channel.
-    Will add to extra keys to the channels,
-        1. `ele_new`: which contains the mini-isolation label to match the mu channel (the yield doesn't change)
-        2. `lep`: which is the sum of `ele_new` and `mu`
-    """
-
-    common_cuts = [
-        "sumgenweight",
-        "HEMCleaning",
-        "Trigger",
-        "METFilters",
-        "OneLep",
-        "NoTaus",
-        "LepIso",
-        "LepMiniIso",
-        "OneCandidateJet",
-        "CandidateJetpT",
-        "LepInJet",
-        "JetLepOverlap",
-        "dPhiJetMETCut",
-    ]
-
-    for year in cutflows.keys():
-        cutflows[year]["ele_new"] = {}
-
-        for sample in cutflows[year]["ele"].keys():
-            cutflows[year]["ele_new"][sample] = {}
-
-            for cut in common_cuts:
-                if (year != "2018") and (cut == "HEMCleaning"):
-                    continue
-
-                if cut != "LepMiniIso":
-                    cutflows[year]["ele_new"][sample][cut] = cutflows[year]["ele"][sample][cut]
-                else:
-                    cutflows[year]["ele_new"][sample][cut] = cutflows[year]["ele"][sample]["LepIso"]
 
     # combine both channels
     cutflows_new = {}
@@ -306,12 +225,14 @@ def combine_channels(cutflows):
         cutflows_new[year] = {}
         cutflows_new[year]["lep"] = {}
 
-        for ch in ["mu", "ele_new"]:
+        for ch in ["mu", "ele"]:
             for sample in cutflows[year][ch]:
+
                 if sample not in cutflows_new[year]["lep"]:
                     cutflows_new[year]["lep"][sample] = {}
 
                 for cut in cutflows[year][ch][sample]:
+
                     if (year != "2018") and (cut == "HEMCleaning"):
                         continue
 
@@ -325,7 +246,7 @@ def combine_channels(cutflows):
 
 
 def combine_years(cutflows):
-    """Combines all years under a key `Run2`. Will remove the HEM cleaning cutflow from 2018 first."""
+    """Will remove the HEM cleaning cutflow from 2018 first."""
 
     whatever_year = list(cutflows.keys())[0]
     channels = cutflows[whatever_year].keys()
@@ -339,6 +260,7 @@ def combine_years(cutflows):
 
         for year in cutflows:
             for sample in cutflows[year][ch]:
+
                 if sample not in cutflows_new["Run2"][ch]:
                     cutflows_new["Run2"][ch][sample] = {}
 
@@ -358,8 +280,8 @@ def combine_years(cutflows):
 def combine_nondominant_bkg(cutflows):
     """Combines non-dominant backgrounds under key `Others`."""
 
-    dominant_bkgs = ["WJetsLNu", "QCD", "TTbar"]
-    signals = ["ggF", "VH", "VBF", "ttH"]
+    dominant_bkgs = ["WJetsLNu", "TTbar"]
+    signals = ["ggF", "VH", "WH", "ZH", "ttH"]
 
     for year in cutflows:
         for ch in cutflows[year]:
@@ -373,13 +295,13 @@ def combine_nondominant_bkg(cutflows):
     return cutflows
 
 
-def make_latex_cutflow_table(cutflows, year, ch, add_data=False, add_sumgenweight=False):
+def make_latex_cutflow_table(cutflows, year, ch, cuts, add_data=False, add_sumgenweight=False):
     """Will use the cutflows dictionary to make the LateX table we have in the AN."""
 
-    samples_bkg = ["WJetsLNu", "QCD", "TTbar", "Others"]
-    samples_sig = ["ggF", "VBF", "VH", "ttH"]
+    samples_bkg = ["WJetsLNu", "TTbar", "Others"]
+    samples_sig = ["ggF", "VBF", "WH", "ZH", "ttH"]
 
-    # BACKGROUND
+    # backgrounds
     headers = [parquet_to_latex[s] for s in samples_bkg]
 
     textabular = f"l{'r'*len(headers)}"
@@ -394,7 +316,7 @@ def make_latex_cutflow_table(cutflows, year, ch, add_data=False, add_sumgenweigh
 
     data = dict()
 
-    for cut in cuts[ch]:
+    for cut in cuts:
         if (year != "2018") and (cut == "HEMCleaning"):
             continue
 
@@ -409,6 +331,7 @@ def make_latex_cutflow_table(cutflows, year, ch, add_data=False, add_sumgenweigh
         totalmc = 0
         for sample in samples_bkg + samples_sig:
             totalmc += round(cutflows[year][ch][sample][cut])
+
         data[cut].append(totalmc)
 
         if add_data:
@@ -421,13 +344,15 @@ def make_latex_cutflow_table(cutflows, year, ch, add_data=False, add_sumgenweigh
 
     texdata += "\\hline\n"
 
-    # SIGNAL
+    # signal
     headers2 = [parquet_to_latex[s] for s in samples_sig]
     texheader2 = " & " + " & ".join(headers2) + "\\\\"
     texdata2 = "\\hline\n"
 
+    textabular2 = f"l{'r'*len(headers2)}"
+
     data = dict()
-    for cut in cuts[ch]:
+    for cut in cuts:
         if (year != "2018") and (cut == "HEMCleaning"):
             continue
 
@@ -448,6 +373,9 @@ def make_latex_cutflow_table(cutflows, year, ch, add_data=False, add_sumgenweigh
     print("\\begin{tabular}{" + textabular + "}")
     print(texheader)
     print(texdata, end="")
+    print("\\end{tabular}")
+
+    print("\\begin{tabular}{" + textabular2 + "}")
     print(texheader2)
     print(texdata2, end="")
     print("\\end{tabular}")
@@ -477,25 +405,48 @@ def make_latex_cutflow_table(cutflows, year, ch, add_data=False, add_sumgenweigh
 
 
 def main(args):
-    samples = ["ggF", "VH", "VBF", "ttH", "QCD", "DYJets", "WJetsLNu", "WZQQ", "TTbar", "SingleTop", "Diboson", "Data"]
-
-    samples_dir = {
-        "2016": "../eos/Dec7_2016",
-        "2016APV": "../eos/Dec7_2016APV",
-        "2017": "../eos/Dec7_2017",
-        "2018": "../eos/Dec7_2018",
-    }
 
     years = args.years.split(",")
     channels = args.channels.split(",")
 
-    cutflows = make_cutflow_dict(years, channels, samples_dir, samples)
+    # load the `events_dict_config.yml`
+    with open("config_make_cutflow_table.yaml", "r") as stream:
+        cutflow_config = yaml.safe_load(stream)
+
+    cutflows = make_cutflow_dict(years, channels, cutflow_config["samples_dir"], cutflow_config["samples"])
+
+    cuts = [
+        "sumgenweight",
+        "Trigger",
+        "METFilters",
+        "OneLep",
+        "NoTaus",
+        "AtLeastOneFatJet",
+        "CandidateJetpT",
+        "LepInJet",
+        "JetLepOverlap",
+        "dPhiJetMET",
+        "MET",
+        "HEMCleaning",
+    ]
+    if args.add_cuts:
+        cutflows = add_cut_to_cutflow(
+            cutflows,
+            years,
+            channels,
+            cutflow_config["samples"],
+            cutflow_config["samples_dir"],
+            cutflow_config["add_cuts"],
+            cutflow_config["THWW_path"],
+        )
+
+        for cut in cutflow_config["add_cuts"]:
+            cuts += [cut]
 
     if len(channels) > 1:
         cutflows = combine_channels(cutflows)
 
     cutflows = combine_years(cutflows)
-
     cutflows = combine_nondominant_bkg(cutflows)
 
     if len(channels) > 1:
@@ -508,19 +459,31 @@ def main(args):
     else:
         year = years[0]
 
-    make_latex_cutflow_table(cutflows, year, channel, add_data=args.add_data, add_sumgenweight=args.add_sumgenweight)
+    print("---------------------------------------")
+    print("---------------------------------------")
+
+    make_latex_cutflow_table(
+        cutflows,
+        year,
+        channel,
+        cuts,
+        add_data=cutflow_config["add_data"],
+        add_sumgenweight=cutflow_config["add_sumgenweight"],
+    )
 
 
 if __name__ == "__main__":
     # e.g.
-    # python make_cutflow_table.py --years 2018,2017,2016,2016APV --channels ele,mu --add_data --add_sumgenweight
+    # python make_cutflow_table.py --years 2017 --channels ele,mu --add_cuts
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--years", dest="years", default="2017", help="years separated by commas")
     parser.add_argument("--channels", dest="channels", default="mu", help="channels separated by commas")
-    parser.add_argument("--add_data", dest="add_data", help="adds an extra column for Data", action="store_true")
     parser.add_argument(
-        "--add_sumgenweight", dest="add_sumgenweight", help="adds an extra row for the sumgenweight", action="store_true"
+        "--add-cuts",
+        dest="add_cuts",
+        help="Add additional cuts to the cutflow table",
+        action="store_true",
     )
 
     args = parser.parse_args()

@@ -19,7 +19,7 @@ import warnings
 
 import pandas as pd
 import rhalphalib as rl
-from utils import get_template, labels, load_templates, samples, sigs
+from utils import bkgs, get_template, labels, load_templates, sigs
 
 rl.ParametericSample.PreferRooParametricHist = True
 logging.basicConfig(level=logging.INFO)
@@ -51,12 +51,11 @@ def create_datacard(hists_templates, add_ttbar_constraint=True, add_wjets_constr
 
     # fill datacard with systematics and rates
     for ChName in SIG_regions + CONTROL_regions:
-        Samples = samples.copy()
 
         ch = rl.Channel(ChName)
         model.addChannel(ch)
 
-        for sName in Samples:
+        for sName in sigs + bkgs:
 
             templ = get_template(hists_templates, sName, ChName)
             if templ == 0:
@@ -64,17 +63,38 @@ def create_datacard(hists_templates, add_ttbar_constraint=True, add_wjets_constr
             stype = rl.Sample.SIGNAL if sName in sigs else rl.Sample.BACKGROUND
             sample = rl.TemplateSample(ch.name + "_" + labels[sName], stype, templ)
 
-            if "CR" in ChName:
-                sample.autoMCStats(lnN=True)
-
             ch.addSample(sample)
+
+        # add Fake
+        sName = "Fake"
+        templ = get_template(hists_templates, sName, ChName)
+        if templ == 0:
+            continue
+
+        sample = rl.TemplateSample(ch.name + "_" + labels[sName], rl.Sample.BACKGROUND, templ)
+
+        # add Fake unc.
+        sample.setParamEffect(rl.NuisanceParameter("Fake_rate_unc", "lnN"), 1.5)
+
+        for sys_name in ["FR_stat", "EWK_SF"]:
+            sys_value = rl.NuisanceParameter(sys_name, "shape")
+            syst_up = hists_templates[{"Sample": "Fake", "Region": ChName, "Systematic": sys_name + "_Up"}].values()
+            syst_do = hists_templates[{"Sample": "Fake", "Region": ChName, "Systematic": sys_name + "_Down"}].values()
+            nominal = hists_templates[{"Sample": "Fake", "Region": ChName, "Systematic": "nominal"}].values()
+
+            nominal[nominal == 0] = 1  # to avoid invalid value encountered in true_divide in "syst_up/nominal"
+            sample.setParamEffect(sys_value, (syst_up / nominal), (syst_do / nominal))
+
+        ch.addSample(sample)
 
         # add data
         data_obs = get_template(hists_templates, "Data", ChName)
         ch.setObservation(data_obs)
 
-        if "CR" not in ChName:
-            ch.autoMCStats()
+        # add mcstats
+        ch.autoMCStats(
+            channel_name=f"{CMS_PARAMS_LABEL}_{ChName}",
+        )
 
     if add_ttbar_constraint:
         failCh = model["TopCR"]

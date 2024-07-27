@@ -326,13 +326,13 @@ def plot_hists(
             color=[color_by_sample[bkg_label] for bkg_label in bkg_labels],
             flow="none",
         )
-        ax.stairs(
-            values=tot.values() + tot_err_MC,
-            baseline=tot.values() - tot_err_MC,
-            edges=tot.axes[0].edges,
-            **errps,
-            label="Stat. unc.",
-        )
+        # ax.stairs(
+        #     values=tot.values() + tot_err_MC,
+        #     baseline=tot.values() - tot_err_MC,
+        #     edges=tot.axes[0].edges,
+        #     **errps,
+        #     label="Stat. unc.",
+        # )
 
     # ax.text(0.5, 0.9, text_, fontsize=14, transform=ax.transAxes, weight="bold")
 
@@ -345,15 +345,15 @@ def plot_hists(
             else:
                 tot_signal = tot_signal + signal[i]
 
-        # plot the total signal (w/o scaling)
         tot_signal *= mult_factor
 
         if mult is not None:
             if mult_factor == 1:
-                siglabel = r"ggF+VBF+WH+ZH+ttH"
+                siglabel = r"Background + Signal"
             else:
-                siglabel = r"ggF+VBF+WH+ZH+ttH $\times$" + f"{mult_factor}"
+                siglabel = r"Background + Signal $\times$" + f"{mult_factor}"
 
+            tot_signal += np.array(bkg).sum(axis=0)
             hep.histplot(
                 tot_signal,
                 ax=ax,
